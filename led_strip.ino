@@ -2,7 +2,7 @@
 #define PIN      6
 #define LED_CNT  150
 
-#include "include/led_strip.h"
+#include "led_strip.h"
 
 void setup() {
   // Open serial communications and wait for port to open:
@@ -74,7 +74,7 @@ void loop() {
   strip.setupsection(belt2);
   strip.setupsection(belt3);
   strip.setupsection(all);
-  //strip.setupsection(all1);
+  strip.setupsection(all1);
  
   while (1) {
     strip.timeTick();

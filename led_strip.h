@@ -78,7 +78,7 @@ class Section_c {
     bool withinRange(uint16_t pos);   // Returns true if "pos" is within the onLeds
     void incrPos(uint16_t &pos, uint16_t cnt);  // Increase a position with "cnt", keeps track of section bounderies
     void decrPos(uint16_t &pos, uint16_t cnt);  // Decrease a position with "cnt", keeps track of section bounderies
-
+    
     // Returns a newColor when going from one color to another
     uint32_t newColor(const int32_t ledStart, //  Start color
                       const int32_t ledEnd,   //  End color
