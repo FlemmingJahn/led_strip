@@ -78,7 +78,7 @@ class Section_c {
     bool withinRange(uint16_t pos);   // Returns true if "pos" is within the onLeds
     void incrPos(uint16_t &pos, uint16_t cnt);  // Increase a position with "cnt", keeps track of section bounderies
     void decrPos(uint16_t &pos, uint16_t cnt);  // Decrease a position with "cnt", keeps track of section bounderies
-    
+
     // Returns a newColor when going from one color to another
     uint32_t newColor(const int32_t ledStart, //  Start color
                       const int32_t ledEnd,   //  End color
@@ -95,7 +95,7 @@ class Section_c {
 class LedStrip_c {
   public:
     void setupsection(Section_cfg_c section);
-    void timeTick(void);
+    void timeTick(uint16_t cnt); // Do time tick "cmd" number of times;
     LedStrip_c(void);
 
   private:
@@ -357,22 +357,24 @@ void Section_c::colorWipe(direction_t dir) {
 //
 // LedStrip_c implementation
 //
-void LedStrip_c::timeTick(void) {
-  // We start out with all LEDs off
-  uint32_t leds[LED_CNT];
-  memset(&leds[0], 0, sizeof(leds));
+void LedStrip_c::timeTick(uint16_t cnt) {
+  for (auto i = 0; i < cnt; i++) {
+    // We start out with all LEDs off
+    uint32_t leds[LED_CNT];
+    memset(&leds[0], 0, sizeof(leds));
 
-  // Loop through all sections and add their LEDs state
-  for (auto i = 0; i < STRIP_SECTIONS_MAX; i++) {
-    sections[i].updateLeds(leds);
-  }
+    // Loop through all sections and add their LEDs state
+    for (auto i = 0; i < STRIP_SECTIONS_MAX; i++) {
+      sections[i].updateLeds(leds);
+    }
 
-  // Turn on the LEDs
-  for (uint16_t i = 0; i < LED_CNT; i++) {
-    strip.setPixelColor(i, leds[i]);
+    // Turn on the LEDs
+    for (uint16_t i = 0; i < LED_CNT; i++) {
+      strip.setPixelColor(i, leds[i]);
+    }
+    delay(1);
+    strip.show();
   }
-  delay(1);
-  strip.show();
 }
 
 void LedStrip_c::setupsection(Section_cfg_c section) {

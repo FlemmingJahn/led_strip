@@ -68,16 +68,20 @@ void loop() {
   left_brace.cfg.onStartPos      = 140;
   left_brace.cfg.onEndPos        = 149;
     
-  strip.setupsection(left_brace);
-  strip.setupsection(right_brace);
-  strip.setupsection(belt1);
-  strip.setupsection(belt2);
-  strip.setupsection(belt3);
+//  strip.setupsection(left_brace);
+//  strip.setupsection(right_brace);
+//  strip.setupsection(belt1);
+//  strip.setupsection(belt2);
+//  strip.setupsection(belt3);
+ 
   strip.setupsection(all);
   strip.setupsection(all1);
  
+
   while (1) {
-    strip.timeTick();
+    strip.timeTick(1000);
+    strip.setupsection(all);
+    strip.setupsection(all1);
   }
 }
 
