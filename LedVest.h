@@ -1,8 +1,9 @@
 // To-do list
 // 
-// Add to github
-// Bounce
+// Bounce Cnt
 // Add RANDOM posiblity
+// Make Vest move showcase
+// Mak Vest bouce showcase
 
 
 #include "debug.h"
@@ -11,6 +12,8 @@ class LedVest_c {
   public:
     LedVest_c(void);
     void move(uint16_t cnt);
+    void bounce(uint16_t cnt);
+    
     private:
     LedStrip_c strip; // Made static in order to catch memmory usage at compile time.
  };
@@ -46,3 +49,18 @@ void LedVest_c::move(uint16_t cnt) {
    strip.timeTick(1);
  }
 }
+
+void LedVest_c::bounce(uint16_t cnt) {
+ 
+ strip.sections[0].init();
+ 
+ strip.sections[0].setLedColor(0, 2, COLOR1, 0xFF0000);
+ strip.sections[0].setLedColor(3, 29, COLOR2, 0x000FF0);
+ strip.sections[0].setFunc(BOUNCE);
+ strip.sections[0].setSlowness(0);
+ 
+  for (auto i = 0; i < cnt; i++) {
+   strip.timeTick(1);
+ }
+}
+

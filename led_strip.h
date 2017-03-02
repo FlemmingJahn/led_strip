@@ -46,7 +46,8 @@ struct section_cfg_t {
   uint32_t color2;             // Color for LED bits set to '0'
   uint8_t  slowness;           // The speed of the behaviour. 0 = fastest, 255 = slowest
   sectionFunction_t func;      // The LEDs behaviour.
- 
+  uint8_t firstLedPos;         // The position of the first LED in this group
+  uint8_t lastLedPos;          // The position of the last LED in this group
 };
 
 
@@ -74,7 +75,6 @@ class Section_c {
     bool doMove();                    // Returns if movment shall happen based on current moveCnt.
     uint16_t delayCnt = 0;            // Current number of ticks until LED movment shall happen.
     bool withinRange(const uint16_t pos, const belt_t &leds);   // Returns true if "pos" is within the onLeds
-    bool currentBounceDirLeft(bool startLed = true); // Returns true if current direction for a bounce is left
          
 };
 
@@ -134,16 +134,6 @@ void Section_cfg_c::setColor(const color_id_t id, const belt_t &led_bits, const 
    }
 }
     
-
-void Section_cfg_c::setFuncMoveRight(void) {
-  cfg.func = MOVE_RIGHT;
-}
-
-void Section_cfg_c::setFuncBounce(void) {
-  cfg.func = BOUNCE;
-}
-
-
 void Section_cfg_c::setLeds(uint16_t setLedNo) {
 //  uint8_t arrIndex = pos/32;
 //  uint8_t bitIndex = pos % 32;
@@ -198,17 +188,26 @@ void Section_c::setLedColor(uint16_t startLed, uint16_t endLed, colorId_t colorI
     T("Error");
     return;
   }
+  if (cfg.firstLedPos > startLed) {
+    cfg.firstLedPos = startLed;
+  }
+
+  if (cfg.lastLedPos < endLed) {
+    cfg.lastLedPos = endLed;
+  }
   
   for (auto index = startLed; index <= endLed; index++) {
     auto bindex = index / 32;
     auto b = index % 32;
     cfg.leds[bindex] |= (uint32_t) 1 << b;
-   // T_V("Bindex", bindex);
-   // T_V("b", b);  
+  //  T_V("Bindex", bindex);
+    
     if (colorId == COLOR1) {
+  //    T_V("b", b);  
       cfg.currentLeds[bindex] |= (uint32_t) 1 << b;
       cfg.color1 = color;
     } else {
+   //   T_V("b", b);  
       cfg.currentLeds[bindex] &= ~((uint32_t) 1 << b);
       cfg.color2 = color;
     }
@@ -231,11 +230,17 @@ void Section_c::init(void) {
 bool Section_c::withinRange(const uint16_t pos, const belt_t &leds) {
   uint8_t arrIndex = pos/32;
   uint8_t bitIndex = pos % 32;
-  // T_V("f", ((uint32_t)1 << bitIndex));
- // T_V("g", leds[arrIndex] & ((uint32_t)1 << bitIndex));
- // T_V("leds[arrIndex]", leds[arrIndex]);
+ /* T_V("f", ((uint32_t)1 << bitIndex));
+  T_V("g", leds[arrIndex] & ((uint32_t)1 << bitIndex));
+  T_V("leds[arrIndex]", leds[arrIndex]);
+  */
+  /*
+  T_V("bitIndex:", bitIndex);
+  T_V("arrIndex:", arrIndex);*/
+//  T_V("pos:", pos);
+ 
   if (leds[arrIndex] & ((uint32_t)1 << bitIndex)) {
-  //T("true");
+  //  T("true");
     return true; 
   } 
  // T("false");
@@ -258,8 +263,8 @@ void Section_c::updateLeds(uint32_t *leds) {
         T("Wipte");
         break;
       case BOUNCE:
-        T("Bounce");
-      //  bounce();
+        //T("Bounce");
+        bounce();
         break;
       case CONSTANT:
         //T("Constant");
@@ -270,7 +275,7 @@ void Section_c::updateLeds(uint32_t *leds) {
     } else {
        delayCnt--;
     }
-     
+ 
   for (uint16_t i = 0; i < LED_CNT; i++ ) {
     if (withinRange(i, cfg.leds)) {
       if (withinRange(i, cfg.currentLeds)) {
@@ -282,6 +287,7 @@ void Section_c::updateLeds(uint32_t *leds) {
       }
     }
   }
+  //delay(10000);
 }
 /*
 // Increase a position with "cnt", keeps track of section bounderies
@@ -324,23 +330,25 @@ bool Section_c::currentBounceDirLeft(bool startLed) {
   return leftDirection;
 }
 */
-/*
+  
 // Bounce back and forward
-void Section_c::bounce(void) {
-  bool leftDirection = currentBounceDirLeft();
-
-  if (leftDirection) {
-    moveLeft(1);
-  } else {
-    moveRight(1);
-  }
+void Section_c::bounce(void) {  
+  static direction_t currentBounceDir = LEFT;   
+       
+  if (currentBounceDir == RIGHT) {
+     // T_V("cfg.lastLedPos:", cfg.lastLedPos);  
+     if (withinRange(cfg.lastLedPos, cfg.currentLeds)) {
+        currentBounceDir = LEFT;
+     }
+   } else {
+     // T_V("cfg.firstLedPos:", cfg.firstLedPos);
+      if (withinRange(cfg.firstLedPos, cfg.currentLeds)) {
+          currentBounceDir = RIGHT;
+      }
+   }
+   moveDir(currentBounceDir);
 }
 
-void Section_c::moveRight(uint16_t cnt) {
-  incrPos(currentOnLedStartPos, cnt);
-  incrPos(currentOnLedEndPos, cnt);
-}
-*/
 void Section_c::moveDir(direction_t dir) {
   uint16_t prevPos  = 0;
   bool     prevVal  = false;
@@ -355,21 +363,23 @@ void Section_c::moveDir(direction_t dir) {
   
   if (dir == RIGHT) {
     startPos = LED_CNT-1;
-    endPos = 0;
+    endPos = -1;
     stepCnt = -1;
   }
 
   for (auto i = 0; i < cfg.moveCnt; i++) {
   bool first = true;
 
-  for (uint16_t currentPos = startPos; currentPos != endPos; currentPos += stepCnt) {
+  for (int16_t currentPos = startPos; currentPos != endPos; currentPos += stepCnt) {
     if (withinRange(currentPos, cfg.leds)) {
+   //    T_V("currentPos:", currentPos);
        if (first) {
          firstVal = getCurrentLedPos(currentPos);
          first = false;
        } else {
-       //  T_V("prevPos", prevPos);
-       //  T_V("prevVal", prevVal);
+        /* T_V("prevPos", prevPos);
+         T_V("prevVal", prevVal);
+      */
          setCurrentLedPos(prevPos, getCurrentLedPos(currentPos));
        }
        
