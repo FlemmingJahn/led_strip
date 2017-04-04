@@ -9,6 +9,7 @@
 // The sections can overlap each other. 
 
 
+#define STRIP_SECTIONS_MAX 10
 
 #define LED_ARRAY_SIZE LED_CNT/32 + 1
 // Which type of behaviour shall the LEDs in the section do
@@ -26,6 +27,12 @@ typedef enum {
   COLOR2 = 1,
 } colorId_t;
 
+
+typedef enum {
+   // 0 - 0xFFFFFF - RGB colors
+   RANDOM = 0xFFFFFFFF
+} color_t;
+
 // Which type of behaviour shall the LEDs in the section do
 typedef enum {
   LEFT,          // Do movment in left direction
@@ -42,12 +49,13 @@ struct section_cfg_t {
   uint8_t moveCnt;    // Number of LEDs to move in each turn
 
   // The LEDs color will be colored with colors going from color1 to color2
-  uint32_t color1;             // Color for LED bits set to '1'
-  uint32_t color2;             // Color for LED bits set to '0'
-  uint8_t  slowness;           // The speed of the behaviour. 0 = fastest, 255 = slowest
+  color_t color1;             // Color for LED bits set to '1'
+  color_t color2;             // Color for LED bits set to '0'
+  uint16_t  slowness;           // The speed of the behaviour. 0 = fastest, 255 = slowest
   sectionFunction_t func;      // The LEDs behaviour.
   uint8_t firstLedPos;         // The position of the first LED in this group
   uint8_t lastLedPos;          // The position of the last LED in this group
+  direction_t currentBounceDir = LEFT; // The current direction of the movement.
 };
 
 
@@ -57,12 +65,12 @@ struct section_cfg_t {
 // Class for doing the acton for a section
 class Section_c {
   public:
-    void setLedColor(const uint16_t startLed, const uint16_t endLed, const colorId_t colorId, const uint32_t color);
+    void setLedColor(const uint16_t startLed, const uint16_t endLed, const colorId_t colorId, const color_t color);
     void setFunc(sectionFunction_t newFunc, uint8_t moveCnt = 1);
-    void init();                     // Reset the setup to init positions.
+    void init(direction_t _currentBounceDir = LEFT);                     // Reset the setup to init positions.
     void updateLeds(uint32_t *leds); // Update LED array with the LEDs states in this section
     Section_c(void);
-    void setSlowness(const uint8_t newSlowness); // Set a new speed
+    void setSlowness(const uint16_t newSlowness); // Set a new speed
     
   private:
     section_cfg_t cfg = {};          // Containing current configurations.
@@ -70,29 +78,30 @@ class Section_c {
     bool Section_c::getCurrentLedPos(uint16_t pos);
    
     void bounce(void);                // Bounce back and forward within the section
+    uint32_t fade(uint32_t color, uint8_t fade_pct);             
+ 
     void moveDir(direction_t direction);  // Move LEDs "cnt" either left or right
     void colorWipe(direction_t dir);  // Fill the LEDs one after the other
     bool doMove();                    // Returns if movment shall happen based on current moveCnt.
     uint16_t delayCnt = 0;            // Current number of ticks until LED movment shall happen.
     bool withinRange(const uint16_t pos, const belt_t &leds);   // Returns true if "pos" is within the onLeds
-         
 };
 
 //
 // Class for the whole strip
 //
-#define STRIP_SECTIONS_MAX 5
 class LedStrip_c {
   public:
     Section_c sections[STRIP_SECTIONS_MAX];
-    //void setupsection(Section_cfg_c section);
     void timeTick(uint16_t cnt); // Do time tick "cmd" number of times;
     LedStrip_c(void); // Constructor - Initializing.
-
+    void sectionCntSet(uint8_t _sectionCnt);
   private:
     
     uint8_t totalStripLength;
     Adafruit_NeoPixel strip = Adafruit_NeoPixel(LED_CNT, PIN, NEO_GRB + NEO_KHZ800);
+    uint8_t sectionCnt;     
+
 };
 
 /************************************************************************************************
@@ -100,53 +109,6 @@ class LedStrip_c {
  *************************************************************************************************/
 // Index for each section added
 static size_t section_cfg_index = 0;
-/*
-// Support function for constructor
-void Section_cfg_c::doCfg(uint16_t sectionFirstPos, uint16_t sectionLastPos, uint16_t onStartPos) {
-  index = section_cfg_index;
-  section_cfg_index++;
-  cfg.sectionFirstPos  = sectionFirstPos;
-  cfg.sectionLastPos   = sectionLastPos;
-  cfg.onStartPos       = onStartPos;
-  cfg.onEndPos         = onStartPos;
-
-  //Default use the same color for all LEDs
-  cfg.color1      = random(0xFFFFFF);
-  cfg.color2       = cfg.color1;
-  cfg.func         = CONSTANT;
-  T("Init Done");
-}
-
-void Section_cfg_c::setColor(const color_id_t id, const belt_t &led_bits, const uint32_t color) {
-   cfg.colors[id] = color;
-
-   // Add the new LED bits
-   for (auto i = 0; i < LED_ARRAY_SIZE; i++) {
-      cfg.leds[i] |= led_bits[i];
-      
-      if (id == COLOR1) {
-          cfg.currentLeds[i] |= led_bits[i]; // Set bits to '1' for all new bits for color1
-      }
-
-      if (id == COLOR2) {
-          cfg.currentLeds[i] &= ~led_bits[i]; // Set bits to '0' for all new bits for color2
-  }
-   }
-}
-    
-void Section_cfg_c::setLeds(uint16_t setLedNo) {
-//  uint8_t arrIndex = pos/32;
-//  uint8_t bitIndex = pos % 32;
-  //cfg.leds[arrIndex] 
- // memcpy(&cfg.leds[0], newLeds, sizeof(cfg.leds));
-}
-
-void Section_cfg_c::setFuncColorWipe(direction_t dir) {
-  cfg.func = COLOR_WIPE;
-  cfg.direction = dir;
-}
-
-*/
 Section_c::Section_c(void) {
  memset(&cfg, 0, sizeof(cfg));
  cfg.func = CONSTANT;
@@ -154,7 +116,7 @@ Section_c::Section_c(void) {
  cfg.slowness = 0;
 }
 
-void Section_c::setSlowness(const uint8_t newSlowness) {
+void Section_c::setSlowness(const uint16_t newSlowness) {
   cfg.slowness = newSlowness;
 }
 
@@ -183,7 +145,7 @@ void Section_c::setCurrentLedPos(uint16_t pos, bool value) {
   }
 }
 
-void Section_c::setLedColor(uint16_t startLed, uint16_t endLed, colorId_t colorId, uint32_t color) {
+void Section_c::setLedColor(uint16_t startLed, uint16_t endLed, colorId_t colorId, color_t color) {
   if (startLed > endLed) {
     T("Error");
     return;
@@ -194,6 +156,10 @@ void Section_c::setLedColor(uint16_t startLed, uint16_t endLed, colorId_t colorI
 
   if (cfg.lastLedPos < endLed) {
     cfg.lastLedPos = endLed;
+  }
+
+  if (color == RANDOM) {
+    color = random(0x1000000);  
   }
   
   for (auto index = startLed; index <= endLed; index++) {
@@ -214,15 +180,16 @@ void Section_c::setLedColor(uint16_t startLed, uint16_t endLed, colorId_t colorI
   }
 }
 // Initialize to start posistion when starting a new section setup
-void Section_c::init(void) {
+void Section_c::init(direction_t _currentBounceDir = LEFT) {
   T("init section");
   memset(&cfg, 0, sizeof(cfg));
   T("init section");
 
   delayCnt = 0;
   T("init section");
-
+  cfg.firstLedPos = LED_CNT;
   cfg.func = CONSTANT;
+  cfg.currentBounceDir = _currentBounceDir;
   T("init section Done");
 }
 
@@ -275,19 +242,26 @@ void Section_c::updateLeds(uint32_t *leds) {
     } else {
        delayCnt--;
     }
- 
+
+  uint8_t fade_pct = 90;
   for (uint16_t i = 0; i < LED_CNT; i++ ) {
     if (withinRange(i, cfg.leds)) {
       if (withinRange(i, cfg.currentLeds)) {
    //     T(cfg.color1);
-         leds[i] |= cfg.color1;
+        
+  //       leds[i] |= fade(cfg.color1, fade_pct);
+
+          leds[i] |= cfg.color1;
       } else {
-         leds[i] |= cfg.color2;
+          leds[i] |= cfg.color2;
+    //          leds[i] |= fade(cfg.color2, fade_pct);
     //    T(cfg.color2);
       }
+      fade_pct = (fade_pct * 60) / 100;
+     // T(fade_pct); 
     }
+    
   }
-  //delay(10000);
 }
 /*
 // Increase a position with "cnt", keeps track of section bounderies
@@ -333,20 +307,31 @@ bool Section_c::currentBounceDirLeft(bool startLed) {
   
 // Bounce back and forward
 void Section_c::bounce(void) {  
-  static direction_t currentBounceDir = LEFT;   
-       
-  if (currentBounceDir == RIGHT) {
-     // T_V("cfg.lastLedPos:", cfg.lastLedPos);  
+  if (cfg.currentBounceDir == RIGHT) {
+     T_V("cfg.lastLedPos:", cfg.lastLedPos);  
      if (withinRange(cfg.lastLedPos, cfg.currentLeds)) {
-        currentBounceDir = LEFT;
+        cfg.currentBounceDir = LEFT;
      }
    } else {
-     // T_V("cfg.firstLedPos:", cfg.firstLedPos);
+     T_V("cfg.firstLedPos:", cfg.firstLedPos);
       if (withinRange(cfg.firstLedPos, cfg.currentLeds)) {
-          currentBounceDir = RIGHT;
+          cfg.currentBounceDir = RIGHT;
       }
    }
-   moveDir(currentBounceDir);
+   moveDir(cfg.currentBounceDir);
+}
+
+uint32_t Section_c::fade(uint32_t color, uint8_t fade_pct) {
+    uint32_t blue = (((color >> 16) & 0xFF) * fade_pct) / 100;
+    uint32_t green = (((color >> 8) & 0xFF) * fade_pct) / 100;
+    uint32_t red = ((color & 0xFF) * fade_pct) / 100;
+    T(color);
+    T_V("red:", red);
+    T(blue);
+    T(green);
+   
+    return (red << 16) + (green<< 8) + blue;
+
 }
 
 void Section_c::moveDir(direction_t dir) {
@@ -358,7 +343,7 @@ void Section_c::moveDir(direction_t dir) {
   
   // Default is set to move LEFT
   int16_t startPos = 0;
-  int16_t endPos = LED_CNT -1;
+  int16_t endPos = LED_CNT;
   int8_t  stepCnt = 1;
   
   if (dir == RIGHT) {
@@ -401,7 +386,7 @@ void LedStrip_c::timeTick(uint16_t cnt) {
     uint32_t led_colors[LED_CNT];
     memset(&led_colors[0], 0, sizeof(led_colors));
     // Loop through all sections and add their LEDs state
-    for (auto i = 0; i < STRIP_SECTIONS_MAX; i++) {
+    for (auto i = 0; i < sectionCnt; i++) {
         // T_V("Strip", i);
         sections[i].updateLeds(led_colors);
     }
@@ -417,24 +402,17 @@ void LedStrip_c::timeTick(uint16_t cnt) {
 
     strip.show();
 }
-/*
-void LedStrip_c::setupsection(Section_cfg_c section) {
 
-  if (section.cfg.sectionFirstPos > section.cfg.onStartPos) {
-    section.cfg.onStartPos = section.cfg.sectionFirstPos;
-  }
-
-  if (section.cfg.sectionLastPos < section.cfg.onEndPos || section.cfg.sectionFirstPos > section.cfg.onEndPos) {
-    section.cfg.onEndPos = section.cfg.sectionLastPos;
-  }
-
-  sections[section.index].cfg = section.cfg;
-  sections[section.index].init();
-}
-*/
 LedStrip_c::LedStrip_c(void) {
-  T("Init");
   strip.begin();
+}
+
+void LedStrip_c::sectionCntSet(uint8_t _sectionCnt) {
+  if (_sectionCnt < STRIP_SECTIONS_MAX) {
+    sectionCnt = _sectionCnt;
+  } else {
+    sectionCnt = STRIP_SECTIONS_MAX;
+  }
 }
 
 

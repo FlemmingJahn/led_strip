@@ -19,9 +19,12 @@ void loop() {
  static LedVest_c LedVestObj; // Made static in order to see how much dynamic memory we use at compile time.
  
  while (1) {
-    LedVestObj.bounce(10000);
-    //LedVestObj.move(1000);
+   LedVestObj.moveAll(1000);
+   LedVestObj.bounce(1000);
+   LedVestObj.move(1000);
+  //  LedVestObj.constant(10000);
   }
+
 }
 
 
